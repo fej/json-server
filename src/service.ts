@@ -4,6 +4,7 @@ import { getProperty } from 'dot-prop'
 import inflection from 'inflection'
 import { Low } from 'lowdb'
 import sortOn from 'sort-on'
+import {Config} from "./config.js";
 
 export type Item = Record<string, unknown>
 
@@ -51,15 +52,19 @@ function ensureArray(arg: string | string[] = []): string[] {
   return Array.isArray(arg) ? arg : [arg]
 }
 
-function embed(db: Low<Data>, name: string, item: Item, related: string): Item {
+function embed(db: Low<Data>, name: string, item: Item, related: string, config?: Config): Item {
+  if(!config) {
+    config = new Config();
+  }
   if (inflection.singularize(related) === related) {
-    const relatedData = db.data[inflection.pluralize(related)] as Item[]
+    const relatedName = inflection.pluralize(related);
+    const relatedData = db.data[relatedName] as Item[]
     if (!relatedData) {
       return item
     }
     const foreignKey = `${related}Id`
     const relatedItem = relatedData.find((relatedItem: Item) => {
-      return relatedItem['id'] === item[foreignKey]
+      return relatedItem[config!.getId(relatedName)] === item[foreignKey]
     })
     return { ...item, [related]: relatedItem }
   }
@@ -71,7 +76,7 @@ function embed(db: Low<Data>, name: string, item: Item, related: string): Item {
 
   const foreignKey = `${inflection.singularize(name)}Id`
   const relatedItems = relatedData.filter(
-    (relatedItem: Item) => relatedItem[foreignKey] === item['id'],
+    (relatedItem: Item) => relatedItem[foreignKey] === item[config!.getId(name)],
   )
 
   return { ...item, [related]: relatedItems }
@@ -113,31 +118,42 @@ function randomId(): string {
   return randomBytes(2).toString('hex')
 }
 
-function fixItemsIds(items: Item[]) {
+function fixItemsIds(items: Item[], id: string) {
   items.forEach((item) => {
-    if (typeof item['id'] === 'number') {
-      item['id'] = item['id'].toString()
+    if (typeof item[id] === 'number') {
+      item[id] = item[id]!.toString()
     }
-    if (item['id'] === undefined) {
-      item['id'] = randomId()
+    if (item[id] === undefined) {
+      item[id] = randomId()
     }
   })
 }
 
 // Ensure all items have an id
-function fixAllItemsIds(data: Data) {
-  Object.values(data).forEach((value) => {
+function fixAllItemsIds(data: Data, config?: Config) {
+  if(!config) {
+    config = new Config();
+  }
+
+  Object.entries(data).forEach(([key, value]) => {
     if (Array.isArray(value)) {
-      fixItemsIds(value)
+      fixItemsIds(value, config!.getId(key))
     }
   })
 }
 
 export class Service {
   #db: Low<Data>
+  #config: Config
 
-  constructor(db: Low<Data>) {
-    fixAllItemsIds(db.data)
+  constructor(db: Low<Data>, config?: Config) {
+    if(config) {
+      this.#config = config
+    } else {
+      this.#config = new Config();
+    }
+
+    fixAllItemsIds(db.data, this.#config)
     this.#db = db
   }
 
@@ -157,9 +173,9 @@ export class Service {
     const value = this.#get(name)
 
     if (Array.isArray(value)) {
-      let item = value.find((item) => item['id'] === id)
+      let item = value.find((item) => item[this.#config.getId(name)] === id)
       ensureArray(query._embed).forEach((related) => {
-        if (item !== undefined) item = embed(this.#db, name, item, related)
+        if (item !== undefined) item = embed(this.#db, name, item, related, this.#config)
       })
       return item
     }
@@ -189,7 +205,7 @@ export class Service {
     // Include
     ensureArray(query._embed).forEach((related) => {
       if (items !== undefined && Array.isArray(items)) {
-        items = items.map((item) => embed(this.#db, name, item, related))
+        items = items.map((item) => embed(this.#db, name, item, related, this.#config))
       }
     })
 
@@ -386,7 +402,7 @@ export class Service {
     const items = this.#get(name)
     if (items === undefined || !Array.isArray(items)) return
 
-    const item = items.find((item) => item['id'] === id)
+    const item = items.find((item) => item[this.#config.getId(name)] === id)
     if (!item) return
 
     const nextItem = isPatch ? { ...item, ...body, id } : { ...body, id }
@@ -429,7 +445,7 @@ export class Service {
     const items = this.#get(name)
     if (items === undefined || !Array.isArray(items)) return
 
-    const item = items.find((item) => item['id'] === id)
+    const item = items.find((item) => item[this.#config.getId(name)] === id)
     if (item === undefined) return
     const index = items.indexOf(item)
     items.splice(index, 1)[0]

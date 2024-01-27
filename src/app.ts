@@ -9,13 +9,15 @@ import { json } from 'milliparsec'
 import sirv from 'sirv'
 
 import { Data, isItem, Service } from './service.js'
+import { Config } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const isProduction = process.env['NODE_ENV'] === 'production'
 
 export type AppOptions = {
   logger?: boolean
-  static?: string[]
+  static?: string[],
+  config?: Config
 }
 
 const eta = new Eta({
@@ -25,7 +27,7 @@ const eta = new Eta({
 
 export function createApp(db: Low<Data>, options: AppOptions = {}) {
   // Create service
-  const service = new Service(db)
+  const service = new Service(db, options.config)
 
   // Create app
   const app = new App()

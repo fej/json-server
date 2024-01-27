@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { createApp } from './app.js'
 import { Observer } from './observer.js'
 import { Data } from './service.js'
+import {Config} from "./config.js";
 
 function help() {
   console.log(`Usage: json-server [options] <file>
@@ -33,6 +34,7 @@ function args(): {
   port: number
   host: string
   static: string[]
+  config: string
 } {
   try {
     const { values, positionals } = parseArgs({
@@ -52,6 +54,11 @@ function args(): {
           short: 's',
           multiple: true,
           default: [],
+        },
+        config: {
+          type: 'string',
+          short: 'c',
+          default: undefined,
         },
         help: {
           type: 'boolean',
@@ -100,6 +107,7 @@ function args(): {
       port: parseInt(values.port as string),
       host: values.host as string,
       static: values.static as string[],
+      config: values.config as string
     }
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ERR_PARSE_ARGS_UNKNOWN_OPTION') {
@@ -112,7 +120,7 @@ function args(): {
   }
 }
 
-const { file, port, host, static: staticArr } = args()
+const { file, port, host, static: staticArr, config: configFile } = args()
 
 if (!existsSync(file)) {
   console.log(chalk.red(`File ${file} not found`))
@@ -136,11 +144,18 @@ if (extname(file) === '.json5') {
 }
 const observer = new Observer(adapter)
 
+let configuration: Config | undefined = undefined;
+if (existsSync(configFile)) {
+  console.log(chalk.gray(`Read config file: ${configFile}`))
+
+  configuration = new Config(configFile);
+}
+
 const db = new Low<Data>(observer, {})
 await db.read()
 
 // Create app
-const app = createApp(db, { logger: false, static: staticArr })
+const app = createApp(db, { logger: false, static: staticArr, config: configuration })
 
 function logRoutes(data: Data) {
   console.log(chalk.bold('Endpoints:'))
