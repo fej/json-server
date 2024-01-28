@@ -1,5 +1,21 @@
 {
+  "global": {
+    "paginationMap": {
+      "_sort": "sort",
+      "_start": "_start",
+      "_end": "_end",
+      "_limit": "size",
+      "_page": "page",
+      "_per_page": "item_per_page"
+    },
+    "search": {},
+    "output": {}
+  },
   "posts": {
-    "id": "testID"
+    "routes": {},
+    "id": "testID",
+    "paginationMap": {},
+    "search": {},
+    "output": {}
   }
 }

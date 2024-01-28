@@ -9,7 +9,7 @@ import { json } from 'milliparsec'
 import sirv from 'sirv'
 
 import { Data, isItem, Service } from './service.js'
-import { Config } from "./config.js";
+import { PaginationMap, Config } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const isProduction = process.env['NODE_ENV'] === 'production'
@@ -52,8 +52,13 @@ export function createApp(db: Low<Data>, options: AppOptions = {}) {
     const { name = '' } = req.params
     const query = Object.fromEntries(Object.entries(req.query)
       .map(([key, value]) => {
-        if (['_start', '_end', '_limit', '_page', '_per_page'].includes(key) && typeof value === 'string') {
-          return [key, parseInt(value)]
+        const paginationMap: PaginationMap = options.config?.getPagination(name);
+
+        const param = Object.keys(paginationMap).find(pKey => paginationMap[pKey] === key);
+
+        if(param && typeof value === 'string') {
+          //if (['_start', '_end', '_limit', '_page', '_per_page'].includes(key) && typeof value === 'string') {
+          return [param, parseInt(value)]
         } else {
           return [key, value]
         }
